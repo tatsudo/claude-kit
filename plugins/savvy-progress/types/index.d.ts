@@ -16,7 +16,12 @@ export type Flow = {
   tasks: PlannedTask[]
 }
 
-export type AgentStatus = 'running' | 'done' | 'failed'
+export type PlanStep = {
+  title: string
+  status: 'pending' | 'in_progress' | 'completed'
+}
+
+export type AgentStatus ='running' | 'done' | 'failed'
 
 export type AgentRun = {
   id: string
@@ -50,6 +55,7 @@ declare module 'claude-code' {
   interface PluginState {
     'savvy-progress': {
       flow: Flow | null
+      plan: PlanStep[]
       agents: AgentRun[]
       panel: Panel
       now: number

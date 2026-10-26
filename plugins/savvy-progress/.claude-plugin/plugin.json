@@ -24,7 +24,7 @@
       "type": "string",
       "title": "Open the agents panel",
       "description": "savvy: when a savvy-flow worker starts or a plan is reported; any: also when any other subagent starts",
-      "default": "savvy",
+      "default": "any",
       "options": [
         "savvy",
         "any"

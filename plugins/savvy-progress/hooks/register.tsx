@@ -1,9 +1,10 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { AgentRun, Flow, Panel, Phase, PlannedTask } from '../types'
+import type { AgentRun, Flow, Panel, Phase, PlannedTask, PlanStep } from '../types'
 
 const flow = atom({ plugin: 'savvy-progress', key: 'flow' } as const, null)
+const plan = atom({ plugin: 'savvy-progress', key: 'plan' } as const, [])
 const agents = atom({ plugin: 'savvy-progress', key: 'agents' } as const, [])
 const panel = atom({ plugin: 'savvy-progress', key: 'panel' } as const, {
   isCompact: false,
@@ -14,6 +15,9 @@ const now = atom({ plugin: 'savvy-progress', key: 'now' } as const, 0)
 
 const TOOL = 'mcp__savvy-progress__progress'
 const STEP_TOOL = 'mcp__savvy-progress__step'
+// The desktop app's own task list: every multi-step turn keeps it, so the band follows any task without a skill.
+const PLAN_TOOL = 'mcp__ccd_turn__update_plan'
+const WRAP_TOOL = 'mcp__ccd_turn__wrap_up'
 // Added to the end of each savvy worker's brief. Their system prompt words step
 // reporting as a condition ("if the step tool appears among your tools") and they
 // skip it even with the tool listed; the same request in the brief is followed.
@@ -223,6 +227,54 @@ const label = (f: Flow): string => {
   if (f.phase === 'design') return s.design
   const count = f.total ? `${f.done}/${f.total}` : `${f.running} ${s.busy}`
   return `${f.phase === 'review' ? s.review : s.tasks} ${count}`
+}
+
+type PlanInput = {
+  items?: { content?: string; status?: string }[]
+  advance?: boolean
+  done?: number[]
+  start?: number
+}
+
+const STEP_STATUSES: readonly PlanStep['status'][] = ['pending', 'in_progress', 'completed']
+
+// update_plan's three shapes: the whole list, `advance`, or `done`/`start` by 1-based number.
+const applyPlan = (prev: PlanStep[], input: PlanInput): PlanStep[] => {
+  if (input.items) {
+    return input.items
+      .filter(i => i.content?.trim())
+      .slice(0, MAX_TASKS)
+      .map(i => ({
+        title: clip((i.content ?? '').trim(), MAX_TITLE),
+        status: STEP_STATUSES.find(s => s === i.status) ?? 'pending',
+      }))
+  }
+  let steps = prev.map(s => ({ ...s }))
+  if (input.advance) {
+    const current = steps.findIndex(s => s.status === 'in_progress')
+    if (current >= 0) steps[current].status = 'completed'
+    const nextStep = steps.findIndex(s => s.status === 'pending')
+    if (nextStep >= 0) steps[nextStep].status = 'in_progress'
+  }
+  for (const n of input.done ?? []) if (steps[n - 1]) steps[n - 1].status = 'completed'
+  if (input.start !== undefined && steps[input.start - 1]) {
+    steps = steps.map(s => (s.status === 'in_progress' ? { ...s, status: 'pending' } : s))
+    steps[input.start - 1].status = 'in_progress'
+  }
+  return steps
+}
+
+const planFlow = (steps: PlanStep[], isFinished: boolean, running: number): Flow => {
+  const current = steps.find(s => s.status === 'in_progress') ?? steps.findLast(s => s.status === 'completed') ?? steps[0]
+  return {
+    ...blank(),
+    title: current?.title ?? '',
+    total: steps.length,
+    done: isFinished ? steps.length : steps.filter(s => s.status === 'completed').length,
+    running,
+    phase: isFinished ? 'close' : 'delegate',
+    isFinished,
+  }
 }
 
 const ratio = (f: Flow): number => (f.isFinished ? 1 : f.total ? f.done / f.total : 0)
@@ -886,6 +938,21 @@ export const register: Register = (on, options) => {
     const next = await update($, flow, p => merge(p, input))
     if (next && input.tasks?.length) await autoOpen($, next.title)
     return { result: `ok: ${label(next ?? blank())}` }
+  })
+
+  on('tool.call', { tool: PLAN_TOOL }, async ($, e, next) => {
+    if (!e.agentId) {
+      const steps = await update($, plan, prev => applyPlan(prev, e as unknown as PlanInput))
+      await update($, flow, prev => (steps.length ? planFlow(steps, false, prev?.running ?? 0) : prev))
+    }
+    return next(e)
+  })
+
+  // wrap_up checks the task list off: the band turns green until the next plan.
+  on('tool.call', { tool: WRAP_TOOL }, async ($, e, next) => {
+    const steps = e.agentId ? [] : await read($, plan)
+    if (steps.length) await update($, flow, prev => (prev ? planFlow(steps, true, prev.running) : prev))
+    return next(e)
   })
 
   // A worker's own progress: the call runs in the worker's loop, so agentId names it.
