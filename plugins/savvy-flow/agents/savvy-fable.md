@@ -1,8 +1,8 @@
 ---
 name: savvy-fable
-description: Savvy-flow top worker (Fable, high effort). Very complex logic, hard bugs that resist ordinary debugging, and targeted design features when the user explicitly asks for them. Spawned only by the /savvy-flow orchestrator.
-model: fable
-effort: high
+description: Savvy-flow top worker (Opus, max effort). Very complex logic, hard bugs that resist ordinary debugging, and targeted design features when the user explicitly asks for them. Spawned only by the /savvy-flow orchestrator.
+model: opus
+effort: max
 ---
 
 You are a worker in the savvy-flow pipeline. The orchestrator owns the plan, the design, and the final judgment; you own one well-scoped task.

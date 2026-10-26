@@ -9,13 +9,13 @@ An orchestrated delivery flow for Claude Code. Run `/savvy-flow <task>` (`/savvy
 
   | Agent | Model / effort | For |
   | --- | --- | --- |
-  | `savvy-fable` | Fable / high | the hardest logic and bugs; design features on request |
+  | `savvy-fable` | Opus / max | the hardest logic and bugs; design features on request |
   | `savvy-heavy` | Opus / xhigh | unfamiliar code, unclear root cause |
   | `savvy-careful` | Opus / high | delicate but well-understood changes |
   | `savvy-medium` | Opus / medium | standard feature work |
   | `savvy-light` | Opus / low | mechanical edits, builds, tests |
 
-  `savvy-fable` runs on the Fable model; without access to it, change `model:` in `agents/savvy-fable.md` (say, to `opus`).
+  `savvy-fable` runs on Opus at max effort in this fork; upstream runs it on the Fable model.
 
 ## With savvy-progress
 
